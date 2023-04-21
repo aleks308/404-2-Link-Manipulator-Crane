@@ -12,7 +12,7 @@ RF24 radio(CE_PIN, CSN_PIN);
 uint8_t address[][6] = { "1Node", "2Node" };
 bool radioNumber = 1;
 bool role = false;
-uint8_t payload[6]={0,0,0,0,0,0};
+uint8_t payload[6];
 
 //eStop
 #define eStop_pin 39
@@ -39,8 +39,8 @@ HX711 scale;
 #define OTHERWISE 0
 MWCSTEPPER xNema(EN_PIN1, DIR_PIN1, STEP_PIN1);
 MWCSTEPPER yNema(EN_PIN2, DIR_PIN2, STEP_PIN2);
-int CurrX=0;
-int CurrY=0;
+int currX=0;
+int currY=0;
 
 void setup() {
   Serial.begin(115200);
@@ -71,7 +71,38 @@ void loop() {
   }
 }
 
-int motorHome(){
+void parsePayload(){
+  if (payload[0]==255 && payload[5]==238){
+    switch (payload[2]){
+      case 1:
+        motorHome();
+        break;
+      case 2:
+        motorFull();
+        break;
+      case 3:
+        motorHalf();
+        break;
+      case 4:
+        retractDC();
+        break;
+      case 5:
+        eStop();
+        break;
+      case 11:
+        int xin=payload[3];
+        int yin=payload[4];
+        motorGOTO(xin,yin);
+        break;
+      case 12:
+        int distin=payload[3];
+        distDC(distin);
+        break;
+    }
+  }
+}
+
+void motorHome(){
   xNema.set(OTHERWISE, RPM, PULSE);
   yNema.set(OTHERWISE, RPM, PULSE);
   while (~xStop)
@@ -89,23 +120,54 @@ void motorFull(){
   xNema.set(CLOCKWISE, RPM, PULSE);
   yNema.set(CLOCKWISE, RPM, PULSE);
 
-  for (size_t i = 0; i < 4456; i++)
+  for (size_t i = 0+currX; i < 4456; i++)
   {
     xNema.run();
+  }
+  for (size_t i = 0+currY; i < 4456; i++)
+  {
     yNema.run();
   }
+  currX=4456;
+  currY=4456;
 }
 
 void motorHalf(){
   //4456 Ticks full extend
   xNema.set(CLOCKWISE, RPM, PULSE);
   yNema.set(CLOCKWISE, RPM, PULSE);
-
-  for (size_t i = 0; i < 2228; i++)
-  {
-    xNema.run();
-    yNema.run();
+  if (currX<2228){
+    for (size_t i = 0+currX; i < 2228; i++)
+    {
+      xNema.run();
+    }
   }
+  else{
+    for (size_t i = 0; i < 2228-currX; i++)
+    {
+      xNema.set(OTHERWISE, RPM, PULSE);
+      xNema.run();
+    }
+  }
+  if (currY<2228){
+    for (size_t i = 0+currY; i < 2228; i++)
+    {
+      yNema.run();
+    }
+  }
+  else{
+    for (size_t i = 0; i < 2228-currY; i++)
+    {
+      yNema.set(OTHERWISE, RPM, PULSE);
+      yNema.run();
+    }
+  }
+  currX=2228;
+  currY=2228;
+}
+
+void retractDC(){
+  
 }
 
 void eStop(){
@@ -113,23 +175,46 @@ void eStop(){
 }
 
 void motorGOTO(int x, int y){ //inputs in CM
-  motorHome();
   xNema.set(CLOCKWISE, RPM, PULSE);
   yNema.set(CLOCKWISE, RPM, PULSE);
-  x=(x/(5*3.1415926535/10))/200;
-  y=(y/(5*3.1415926535/10))/200;
-  for (size_t i = 0; i < x; i++)
-  {
-    xNema.run();
+  int xp=(double(x)/(5*3.1415926535/10))/200;
+  int yp=(double(y)/(5*3.1415926535/10))/200;
+  if (currX<xp){
+    for (size_t i = 0+currX; i < xp; i++)
+    {
+      xNema.run();
+    }
   }
-  for (size_t i = 0; i < y; i++)
-  {
-    yNema.run();
+  else{
+    for (size_t i = 0; i < xp-currX; i++)
+    {
+      xNema.set(OTHERWISE, RPM, PULSE);
+      xNema.run();
+    }
   }
+  if (currY<yp){
+    for (size_t i = 0+currY; i < yp; i++)
+    {
+      yNema.run();
+    }
+  }
+  else{
+    for (size_t i = 0; i < yp-currY; i++)
+    {
+      yNema.set(OTHERWISE, RPM, PULSE);
+      yNema.run();
+    }
+  }
+  currX=xp;
+  currY=yp;
+}
+
+void distDC(int distin){
+  
 }
 
 void roboPulse(){
-  
+  //include voltage
 }
 
 void scaleRead(){
