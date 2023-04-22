@@ -33,7 +33,7 @@ HX711 scale;
 #define EN_PIN2 28
 #define DIR_PIN2 30
 #define STEP_PIN2 10
-#define RPM 50
+#define RPM 40
 #define PULSE 1600
 #define CLOCKWISE 1
 #define OTHERWISE 0
@@ -41,6 +41,8 @@ MWCSTEPPER xNema(EN_PIN1, DIR_PIN1, STEP_PIN1);
 MWCSTEPPER yNema(EN_PIN2, DIR_PIN2, STEP_PIN2);
 int currX=0;
 int currY=0;
+int xin=0;
+int yin=0;
 
 void setup() {
   Serial.begin(115200);
@@ -68,12 +70,13 @@ void loop() {
      for(int i=0; i<sizeof(payload); i++){
        Serial.println(payload[i]);
      }
+     parsePayload();
   }
 }
 
 void parsePayload(){
   if (payload[0]==255 && payload[5]==238){
-    switch (payload[2]){
+    switch (payload[1]){
       case 1:
         motorHome();
         break;
@@ -90,12 +93,12 @@ void parsePayload(){
         eStop();
         break;
       case 11:
-        int xin=payload[3];
-        int yin=payload[4];
-        motorGOTO(xin,yin);
+        xin=payload[2];
+        yin=payload[3];
+        motorGOTO();
         break;
       case 12:
-        int distin=payload[3];
+        int distin=payload[2];
         distDC(distin);
         break;
     }
@@ -120,16 +123,16 @@ void motorFull(){
   xNema.set(CLOCKWISE, RPM, PULSE);
   yNema.set(CLOCKWISE, RPM, PULSE);
 
-  for (size_t i = 0+currX; i < 4456; i++)
+  for (size_t i = 0+currX; i < 200; i++)
   {
     xNema.run();
   }
-  for (size_t i = 0+currY; i < 4456; i++)
+  for (size_t i = 0+currY; i < 200; i++)
   {
     yNema.run();
   }
-  currX=4456;
-  currY=4456;
+  currX=200;
+  currY=200;
 }
 
 void motorHalf(){
@@ -174,34 +177,34 @@ void eStop(){
   digitalWrite(eStop_pin, HIGH);
 }
 
-void motorGOTO(int x, int y){ //inputs in CM
+void motorGOTO(){ //inputs in CM
   xNema.set(CLOCKWISE, RPM, PULSE);
   yNema.set(CLOCKWISE, RPM, PULSE);
-  int xp=(double(x)/(5*3.1415926535/10))/200;
-  int yp=(double(y)/(5*3.1415926535/10))/200;
-  if (currX<xp){
+  int xp=map(xin,0,255,0,250);
+  int yp=map(yin,0,255,0,300);
+  if (currX<=xp){
     for (size_t i = 0+currX; i < xp; i++)
     {
       xNema.run();
     }
   }
   else{
-    for (size_t i = 0; i < xp-currX; i++)
+    xNema.set(OTHERWISE, RPM, PULSE);
+    for (size_t i = 0; i < currX-xp; i++)
     {
-      xNema.set(OTHERWISE, RPM, PULSE);
       xNema.run();
     }
   }
-  if (currY<yp){
+  if (currY<=yp){
     for (size_t i = 0+currY; i < yp; i++)
     {
       yNema.run();
     }
   }
   else{
-    for (size_t i = 0; i < yp-currY; i++)
+    yNema.set(OTHERWISE, RPM, PULSE);
+    for (size_t i = 0; i < currY-yp; i++)
     {
-      yNema.set(OTHERWISE, RPM, PULSE);
       yNema.run();
     }
   }
