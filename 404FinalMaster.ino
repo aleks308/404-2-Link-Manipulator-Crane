@@ -87,7 +87,19 @@ void loop() {
      for(int i=0; i<sizeof(payload); i++){
        Serial.println(payload[i]);
      }
-     parsePayload();
+     int chkSUM=0;
+     for(int i=0; i<sizeof(payload); i++){
+       if (i!=4){
+        chkSUM=chkSUM+int(payload[i]);
+       }
+     }
+     chkSUM=chkSUM % 256;
+     if(payload[4]==chkSUM){
+       parsePayload();
+     }
+     else{
+      Serial.print("Bad checksum");
+     }
   }
 }
 
@@ -116,8 +128,8 @@ void parsePayload(){
         break;
       case 12:
         uint16_t distin=(payload[2])|(payload[3]<<8);
-        Serial.print(distin);
-        //distDC(distin);
+        //Serial.print(distin);
+        distDC(distin);
         break;
     }
   }
@@ -191,6 +203,7 @@ void retractDC(){
   while(DCticks>0){
     setMotor(1,IN1,IN2);
   }
+  setMotor(0,IN1,IN2);
 }
 
 void eStop(){
@@ -240,19 +253,48 @@ void motorGOTO(){ //Inputs Converted to Steps
   currY=yp;
 }
 
-void distDC(int distin){
-  
+void distDC(uint16_t DCDist){
+  while(DCticks<DCDist){
+    setMotor(-1,IN1,IN2);
+  }
+  setMotor(0,IN1,IN2);
 }
 
 void roboPulse(){
-  //include voltage
+//include voltage and scale
+  radio.stopListening();
+// weight=scaleRead(); First number is before the decimal place, second is after. Second is 0-99.
+// code to determine voltage
+// voltage=blah  First number is before the decimal place, second is after. Second is 0-99.
+//  uint8_t HBpayload[7]={255,weight[0],weight[1],voltage[0],voltage[1],0,238];
+//  int chkSUM=0;
+//  for(int i=0; i<sizeof(payload); i++){
+//    if (i!=5){
+//     chkSUM=chkSUM+int(payload[i]);
+//    }
+//  }
+//  HBpayload[5]=chkSUM % 256;
+//  radio.setPayloadSize(sizeof(HBpayload));
+//  bool report=radio.write(&HBpayload, sizeof(HBpayload));
+//  if (report) {
+//    Serial.println("HB Pos");
+//  }
+//  else {
+//    Serial.println("HB Neg");
+//  }
+
+  //reset
+  radio.setPayloadSize(sizeof(payload));
+  radio.startListening();
 }
 
 void scaleRead(){
   if (scale.is_ready()) {
     long reading = scale.read();
-    Serial.print("HX711 reading: ");
-    Serial.println(reading);
+//    Serial.print("HX711 reading: ");
+//    Serial.println(reading);
+//    code to determine weight WIP
+//    return weight;
   } 
   else{
     Serial.println("HX711 not found.");
