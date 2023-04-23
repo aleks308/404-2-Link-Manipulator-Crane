@@ -115,7 +115,7 @@ void parsePayload(){
         motorGOTO();
         break;
       case 12:
-        uint16_t distin=(payload[2] << 8)|(payload[3]);
+        uint16_t distin=(payload[2])|(payload[3]<<8);
         Serial.print(distin);
         //distDC(distin);
         break;
@@ -197,34 +197,42 @@ void eStop(){
   digitalWrite(eStop_pin, HIGH);
 }
 
-void motorGOTO(){ //inputs in CM
-  xNema.set(CLOCKWISE, RPM, PULSE);
-  yNema.set(CLOCKWISE, RPM, PULSE);
-  int xp=map(xin,0,255,0,250);
-  int yp=map(yin,0,255,0,300);
+void motorGOTO(){ //Inputs Converted to Steps
+  xNema.set(OTHERWISE, RPM, PULSE);
+  yNema.set(OTHERWISE, RPM, PULSE);
+  int xp=map(xin,0,255,0,2224);
+  int yp=map(yin,0,255,0,2224);
   if (currX<=xp){
     for (size_t i = 0+currX; i < xp; i++)
     {
       xNema.run();
-    }
-  }
-  else{
-    xNema.set(OTHERWISE, RPM, PULSE);
-    for (size_t i = 0; i < currX-xp; i++)
-    {
-      xNema.run();
-    }
-  }
-  if (currY<=yp){
-    for (size_t i = 0+currY; i < yp; i++)
-    {
       yNema.run();
     }
   }
   else{
+    xNema.set(CLOCKWISE, RPM, PULSE);
+    yNema.set(CLOCKWISE, RPM, PULSE);
+    for (size_t i = 0; i < currX-xp; i++)
+    {
+      xNema.run();
+      yNema.run();
+    }
+  }
+  if (currY<=yp){
+    xNema.set(OTHERWISE, RPM, PULSE);
     yNema.set(OTHERWISE, RPM, PULSE);
+    for (size_t i = 0+currY; i < yp; i++)
+    {
+      xNema.run();
+      yNema.run();
+    }
+  }
+  else{
+    xNema.set(CLOCKWISE, RPM, PULSE);
+    yNema.set(CLOCKWISE, RPM, PULSE);
     for (size_t i = 0; i < currY-yp; i++)
     {
+      xNema.run();
       yNema.run();
     }
   }
