@@ -3,7 +3,13 @@
 #include <SPI.h>
 #include "printf.h"
 #include "RF24.h"
-#define led_pin 3   
+
+//DC Pins
+#define ENCA 18 //Yellow
+#define ENCB 19 //white
+#define IN1 5
+#define IN2 6
+int DCticks=0;
 
 //rf pins
 #define CE_PIN 53
@@ -46,6 +52,8 @@ int yin=0;
 
 void setup() {
   Serial.begin(115200);
+
+  //RF 
   if (!radio.begin()) {
     Serial.println(F("radio hardware is not responding!!"));
     while (1) {}  // hold in infinite loop
@@ -54,11 +62,20 @@ void setup() {
   radio.setPayloadSize(sizeof(payload));
   radio.openWritingPipe(address[radioNumber]);
   radio.openReadingPipe(1, address[!radioNumber]);  
-  
+  radio.startListening();
+
+
+  //HX711
   scale.begin(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
+
+  //NEMA
   xNema.init();
   yNema.init();
-  radio.startListening();
+
+  //DC 
+  pinMode(ENCA,INPUT);
+  pinMode(ENCB,INPUT);
+  attachInterrupt(digitalPinToInterrupt(ENCA),readEncoder,RISING);
 }
 
 void loop() {
@@ -98,8 +115,9 @@ void parsePayload(){
         motorGOTO();
         break;
       case 12:
-        int distin=payload[2];
-        distDC(distin);
+        uint16_t distin=(payload[2] << 8)|(payload[3]);
+        Serial.print(distin);
+        //distDC(distin);
         break;
     }
   }
@@ -123,16 +141,16 @@ void motorFull(){
   xNema.set(CLOCKWISE, RPM, PULSE);
   yNema.set(CLOCKWISE, RPM, PULSE);
 
-  for (size_t i = 0+currX; i < 200; i++)
+  for (size_t i = 0+currX; i < 4456; i++)
   {
     xNema.run();
   }
-  for (size_t i = 0+currY; i < 200; i++)
+  for (size_t i = 0+currY; i < 4456; i++)
   {
     yNema.run();
   }
-  currX=200;
-  currY=200;
+  currX=4456;
+  currY=4456;
 }
 
 void motorHalf(){
@@ -170,7 +188,9 @@ void motorHalf(){
 }
 
 void retractDC(){
-  
+  while(DCticks>0){
+    setMotor(1,IN1,IN2);
+  }
 }
 
 void eStop(){
@@ -228,5 +248,30 @@ void scaleRead(){
   } 
   else{
     Serial.println("HX711 not found.");
+  }
+}
+
+void readEncoder(){
+  int b = digitalRead(ENCB);
+  if(b>0){
+    DCticks++;
+  }
+  else{
+    DCticks--;
+  }
+}
+
+void setMotor(int dir, int in1, int in2){
+  if(dir==1){
+    digitalWrite(in1,HIGH);
+    digitalWrite(in2,LOW);
+  }
+  else if(dir==-1){
+    digitalWrite(in1,LOW);
+    digitalWrite(in2,HIGH);
+  }
+  else{
+    digitalWrite(in1,LOW);
+    digitalWrite(in2,LOW);
   }
 }
