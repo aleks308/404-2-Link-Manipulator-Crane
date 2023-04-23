@@ -1,0 +1,81 @@
+#include <SPI.h>
+#include "printf.h"
+#include "RF24.h"
+
+#define CE_PIN 9
+#define CSN_PIN 10
+
+// instantiate an object for the nRF24L01 transceiver
+RF24 radio(CE_PIN, CSN_PIN);  
+// Let these addresses be used for the pair
+uint8_t address[][6] = { "1Node", "2Node" };
+bool radioNumber = 0;
+bool role = true;  // true = TX role, false = RX role
+uint8_t header=255;
+uint8_t dataID=11;
+uint8_t data1=23;
+uint8_t data2=240;
+uint8_t checksum=55;
+uint8_t footer=238;
+uint8_t payload[6] = {header,dataID,data1,data2,checksum,footer};
+int cnt = 0;  // <<<<<<<<<  added the semi colon
+int integerValue=0; 
+int storedData[2];    //<<<< the value to be stored is an int but only space for 2 of them as written
+// Max value is 65535
+char incomingByte;
+void setup() {
+  Serial.begin(115200);
+  if (!radio.begin()) {
+    Serial.println(F("radio hardware is not responding!!"));
+    while (1) {}  // hold in infinite loop
+  }
+  radio.setPALevel(RF24_PA_LOW);  // RF24_PA_MAX is default.
+  
+  // set the TX address of the RX node into the TX pipe
+  radio.openWritingPipe(address[radioNumber]);  // always uses pipe 0
+
+  radio.setPayloadSize(sizeof(payload));
+
+  // set the RX address of the TX node into a RX pipe
+  radio.openReadingPipe(1, address[!radioNumber]);  // using pipe 1
+  radio.stopListening();
+} 
+
+void loop() {
+  role=0;
+  if (Serial.available() > 0) {   // something came across serial
+    integerValue = 0;         // throw away previous integerValue
+    while(1) {            // force into a loop until 'n' is received
+      incomingByte = Serial.read();
+      if (incomingByte == '\n' || incomingByte == ',') //<<<<<<<<< break on Newline or comma
+      {
+        break;     
+      }           // exit the while(1), we're done receiving
+      if (incomingByte == -1) continue;  // if no characters are in the buffer read() returns -1
+      integerValue *= 10;  // shift left 1 decimal place
+      // convert ASCII to integer, add, and shift left 1 decimal place
+      integerValue = ((incomingByte - 48) + integerValue);
+    }
+    storedData[cnt] = integerValue;
+    payload[cnt+1]=storedData[cnt];
+    cnt++;      //<<<<<<<<<<<<<<<increment index after storing and printing
+    if(cnt==3){
+      cnt=0;
+      role=1;
+//      for(int i=0; i<sizeof(payload); i++){
+//       Serial.println(payload[i]);
+//     }
+    }
+  }
+  if (role){
+     for(int i=0; i<sizeof(payload); i++){
+       Serial.println(payload[i]);
+     }
+     bool report=radio.write(&payload, sizeof(payload));
+     if (report) {
+          delay(1000);
+     }
+     else {
+     }
+  }
+}
