@@ -18,6 +18,7 @@ uint8_t data2=240;
 uint8_t checksum=55;
 uint8_t footer=238;
 uint8_t payload[6] = {header,dataID,data1,data2,checksum,footer};
+uint8_t HBpayload[7];
 int cnt = 0;  // <<<<<<<<<  added the semi colon
 int integerValue=0; 
 int storedData[2];    //<<<< the value to be stored is an int but only space for 2 of them as written
@@ -34,15 +35,37 @@ void setup() {
   // set the TX address of the RX node into the TX pipe
   radio.openWritingPipe(address[radioNumber]);  // always uses pipe 0
 
-  radio.setPayloadSize(sizeof(payload));
+  radio.setPayloadSize(sizeof(HBpayload));
 
   // set the RX address of the TX node into a RX pipe
   radio.openReadingPipe(1, address[!radioNumber]);  // using pipe 1
-  radio.stopListening();
+  radio.startListening();
 } 
 
 void loop() {
   role=0;
+  uint8_t pipe;
+  if (radio.available(&pipe))
+  {
+     uint8_t bytes = radio.getPayloadSize();
+     radio.read(&HBpayload, bytes);
+     for(int i=0; i<sizeof(HBpayload); i++){
+       Serial.println(HBpayload[i]);
+     }
+     int chkSUM=0;
+     for(int i=0; i<sizeof(HBpayload); i++){
+       if (i!=5){
+        chkSUM=chkSUM+int(HBpayload[i]);
+       }
+     }
+     chkSUM=chkSUM % 256;
+     if(HBpayload[5]==chkSUM){
+       parseHB();
+     }
+     else{
+      Serial.print("Bad checksum");
+     }
+  }
   if (Serial.available() > 0) {   // something came across serial
     integerValue = 0;         // throw away previous integerValue
     while(1) {            // force into a loop until 'n' is received
@@ -75,14 +98,34 @@ void loop() {
     }
   }
   if (role){
-     for(int i=0; i<sizeof(payload); i++){
-       Serial.println(payload[i]);
-     }
+     radio.stopListening();
+     radio.setPayloadSize(sizeof(payload));
      bool report=radio.write(&payload, sizeof(payload));
      if (report) {
           delay(1000);
      }
      else {
      }
+     radio.setPayloadSize(sizeof(HBpayload));
+     radio.startListening();
+  }
+}
+
+void parseHB(){
+  if (HBpayload[0]==255 && HBpayload[6]==238){
+    int voltage1=HBpayload[1];
+    int voltage2=HBpayload[2];
+    int weight1=HBpayload[3];
+    int weight2=HBpayload[4];
+    Serial.println("Heartbeat receieved. The battery voltage is:");
+    Serial.print(voltage1);
+    Serial.print(".");
+    Serial.print(voltage2);
+    Serial.print("V");
+    Serial.println("The weight of the object is:");
+    Serial.print(weight1);
+    Serial.print(".");
+    Serial.print(weight2);
+    Serial.print(" lbs");
   }
 }
