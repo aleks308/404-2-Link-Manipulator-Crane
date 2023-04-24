@@ -29,8 +29,8 @@ const int LOADCELL_SCK_PIN = 12;
 HX711 scale;
 
 //end stop pins
-#define xStop 35
-#define yStop 37
+#define xStop 20
+#define yStop 21
 
 //Stepp pins
 #define EN_PIN1 29
@@ -53,8 +53,8 @@ int yin=0;
 //Pulse
 unsigned long currMillis=0;
 unsigned long prevMillis=0;
-const unsigned long HBPeriod=2000;
-uint8_t HBpayload[7];
+const unsigned long HBPeriod=500;
+uint8_t HBpayload[7]={255,12,6,1,23,238,238};
 
 void setup() {
   Serial.begin(115200);
@@ -70,13 +70,14 @@ void setup() {
   radio.openReadingPipe(1, address[!radioNumber]);  
   radio.startListening();
 
-
   //HX711
   scale.begin(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
 
   //NEMA
   xNema.init();
   yNema.init();
+  attachInterrupt(digitalPinToInterrupt(xStop),setx0,RISING);
+  attachInterrupt(digitalPinToInterrupt(yStop),sety0,RISING);
 
   //DC 
   pinMode(ENCA,INPUT);
@@ -91,6 +92,7 @@ void loop() {
   currMillis=millis();
   if (currMillis-prevMillis >= HBPeriod){
     roboPulse();
+    prevMillis=currMillis;
   }
   uint8_t pipe;
   if (radio.available(&pipe))
@@ -142,6 +144,7 @@ void parsePayload(){
       case 12:
         uint16_t distin=(payload[2])|(payload[3]<<8);
         //Serial.print(distin);
+        Serial.print(distin);
         distDC(distin);
         break;
     }
@@ -151,13 +154,17 @@ void parsePayload(){
 void motorHome(){
   xNema.set(OTHERWISE, RPM, PULSE);
   yNema.set(OTHERWISE, RPM, PULSE);
-  while (~xStop)
+  while (currX>0){
+    xNema.run();
+    yNema.run();
+    currX--;
+  }
+  xNema.set(CLOCKWISE, RPM, PULSE);
+  while (currY>0)
   {
     xNema.run();
-  }
-  while (~yStop)
-  {
     yNema.run();
+    currY--;
   }
 }
 
@@ -224,10 +231,10 @@ void eStop(){
 }
 
 void motorGOTO(){ //Inputs Converted to Steps
-  xNema.set(OTHERWISE, RPM, PULSE);
-  yNema.set(OTHERWISE, RPM, PULSE);
-  int xp=map(xin,0,255,0,2224);
-  int yp=map(yin,0,255,0,2224);
+  xNema.set(CLOCKWISE, RPM, PULSE);
+  yNema.set(CLOCKWISE, RPM, PULSE);
+  int xp=map(xin,0,255,0,1004);
+  int yp=map(yin,0,255,0,1004);
   if (currX<=xp){
     for (size_t i = 0+currX; i < xp; i++)
     {
@@ -236,8 +243,8 @@ void motorGOTO(){ //Inputs Converted to Steps
     }
   }
   else{
-    xNema.set(CLOCKWISE, RPM, PULSE);
-    yNema.set(CLOCKWISE, RPM, PULSE);
+    xNema.set(OTHERWISE, RPM, PULSE);
+    yNema.set(OTHERWISE, RPM, PULSE);
     for (size_t i = 0; i < currX-xp; i++)
     {
       xNema.run();
@@ -246,7 +253,7 @@ void motorGOTO(){ //Inputs Converted to Steps
   }
   if (currY<=yp){
     xNema.set(OTHERWISE, RPM, PULSE);
-    yNema.set(OTHERWISE, RPM, PULSE);
+    yNema.set(CLOCKWISE, RPM, PULSE);
     for (size_t i = 0+currY; i < yp; i++)
     {
       xNema.run();
@@ -255,7 +262,7 @@ void motorGOTO(){ //Inputs Converted to Steps
   }
   else{
     xNema.set(CLOCKWISE, RPM, PULSE);
-    yNema.set(CLOCKWISE, RPM, PULSE);
+    yNema.set(OTHERWISE, RPM, PULSE);
     for (size_t i = 0; i < currY-yp; i++)
     {
       xNema.run();
@@ -267,7 +274,7 @@ void motorGOTO(){ //Inputs Converted to Steps
 }
 
 void distDC(uint16_t DCDist){
-  while(DCticks<DCDist){
+  while(DCticks<int(DCDist)){
     setMotor(-1,IN1,IN2);
   }
   setMotor(0,IN1,IN2);
@@ -275,26 +282,26 @@ void distDC(uint16_t DCDist){
 
 void roboPulse(){
 //include voltage and scale
-//  radio.stopListening();
+  radio.stopListening();
+  radio.setPayloadSize(sizeof(HBpayload));
 //  weight=scaleRead(); First number is before the decimal place, second is after. Second is 0-99.
 //  code to determine voltage
 //  voltage=blah  First number is before the decimal place, second is after. Second is 0-99.
 //  uint8_t HBpayload[7]={255,weight[0],weight[1],voltage[0],voltage[1],0,238];
-//  int chkSUM=0;
-//  for(int i=0; i<sizeof(payload); i++){
-//    if (i!=5){
-//     chkSUM=chkSUM+int(payload[i]);
-//    }
-//  }
-//  HBpayload[5]=chkSUM % 256;
-//  radio.setPayloadSize(sizeof(HBpayload));
-//  bool report=radio.write(&HBpayload, sizeof(HBpayload));
-//  if (report) {
-//    Serial.println("HB Pos");
-//  }
-//  else {
-//    Serial.println("HB Neg");
-//  }
+  int chkSUM=0;
+  for(int i=0; i<sizeof(HBpayload); i++){
+    if (i!=5){
+     chkSUM=chkSUM+int(HBpayload[i]);
+    }
+  }
+  HBpayload[5]=chkSUM % 256;
+  bool report=radio.write(&HBpayload, sizeof(HBpayload));
+  if (report) {
+    Serial.println("HB Pos");
+  }
+  else {
+    Serial.println("HB Neg");
+  }
 
   //reset
   radio.setPayloadSize(sizeof(payload));
@@ -337,4 +344,14 @@ void setMotor(int dir, int in1, int in2){
     digitalWrite(in1,LOW);
     digitalWrite(in2,LOW);
   }
+}
+
+void setx0(){
+  currX=0;
+  Serial.print("x");
+}
+
+void sety0(){
+  currY=0;
+  Serial.print("y");
 }
