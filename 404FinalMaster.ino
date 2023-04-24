@@ -50,6 +50,12 @@ int currY=0;
 int xin=0;
 int yin=0;
 
+//Pulse
+unsigned long currMillis=0;
+unsigned long prevMillis=0;
+const unsigned long HBPeriod=2000;
+uint8_t HBpayload[7];
+
 void setup() {
   Serial.begin(115200);
 
@@ -76,9 +82,16 @@ void setup() {
   pinMode(ENCA,INPUT);
   pinMode(ENCB,INPUT);
   attachInterrupt(digitalPinToInterrupt(ENCA),readEncoder,RISING);
+
+  //Timer
+  prevMillis=millis();
 }
 
 void loop() {
+  currMillis=millis();
+  if (currMillis-prevMillis >= HBPeriod){
+    roboPulse();
+  }
   uint8_t pipe;
   if (radio.available(&pipe))
   {
@@ -262,10 +275,10 @@ void distDC(uint16_t DCDist){
 
 void roboPulse(){
 //include voltage and scale
-  radio.stopListening();
-// weight=scaleRead(); First number is before the decimal place, second is after. Second is 0-99.
-// code to determine voltage
-// voltage=blah  First number is before the decimal place, second is after. Second is 0-99.
+//  radio.stopListening();
+//  weight=scaleRead(); First number is before the decimal place, second is after. Second is 0-99.
+//  code to determine voltage
+//  voltage=blah  First number is before the decimal place, second is after. Second is 0-99.
 //  uint8_t HBpayload[7]={255,weight[0],weight[1],voltage[0],voltage[1],0,238];
 //  int chkSUM=0;
 //  for(int i=0; i<sizeof(payload); i++){
