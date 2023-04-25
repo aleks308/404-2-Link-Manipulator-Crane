@@ -113,10 +113,10 @@ void loop() {
 
 void parseHB(){
   if (HBpayload[0]==255 && HBpayload[6]==238){
-    int voltage1=HBpayload[1];
-    int voltage2=HBpayload[2];
-    int weight1=HBpayload[3];
-    int weight2=HBpayload[4];
+    int voltage1=HBpayload[3];
+    int voltage2=HBpayload[4];
+    int weight1=HBpayload[1];
+    int weight2=HBpayload[2];
     Serial.println("Heartbeat receieved. The battery voltage is:");
     Serial.print(voltage1);
     Serial.print(".");
