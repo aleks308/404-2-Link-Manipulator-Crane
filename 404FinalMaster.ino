@@ -11,6 +11,9 @@
 #define IN2 6
 int DCticks=0;
 
+//Voltage divider
+#define VPin A0
+
 //rf pins
 #define CE_PIN 53
 #define CSN_PIN 3
@@ -125,15 +128,12 @@ void parsePayload(){
         motorHome();
         break;
       case 2:
-        motorFull();
-        break;
-      case 3:
         motorHalf();
         break;
-      case 4:
+      case 3:
         retractDC();
         break;
-      case 5:
+      case 4:
         eStop();
         break;
       case 11:
@@ -146,6 +146,12 @@ void parsePayload(){
         //Serial.print(distin);
         Serial.print(distin);
         distDC(distin);
+        break;
+      case 13
+        uint16_t distin=(payload[2])|(payload[3]<<8);
+        //Serial.print(distin);
+        Serial.print(distin);
+        distRetractDC(distin);
         break;
     }
   }
@@ -166,23 +172,6 @@ void motorHome(){
     yNema.run();
     currY--;
   }
-}
-
-void motorFull(){
-  //4456 Ticks full extend
-  xNema.set(CLOCKWISE, RPM, PULSE);
-  yNema.set(CLOCKWISE, RPM, PULSE);
-
-  for (size_t i = 0+currX; i < 4456; i++)
-  {
-    xNema.run();
-  }
-  for (size_t i = 0+currY; i < 4456; i++)
-  {
-    yNema.run();
-  }
-  currX=4456;
-  currY=4456;
 }
 
 void motorHalf(){
@@ -233,8 +222,8 @@ void eStop(){
 void motorGOTO(){ //Inputs Converted to Steps
   xNema.set(CLOCKWISE, RPM, PULSE);
   yNema.set(CLOCKWISE, RPM, PULSE);
-  int xp=map(xin,0,255,0,1004);
-  int yp=map(yin,0,255,0,1004);
+  int xp=map(xin,0,255,0,2550);
+  int yp=map(yin,0,255,0,2550);
   if (currX<=xp){
     for (size_t i = 0+currX; i < xp; i++)
     {
@@ -280,14 +269,25 @@ void distDC(uint16_t DCDist){
   setMotor(0,IN1,IN2);
 }
 
+void distRetractDC(uint16_t DCDist){
+  while(DCticks>int(DCDist)){
+    setMotor(1,IN1,IN2);
+  }
+  setMotor(0,IN1,IN2);
+}
+
 void roboPulse(){
 //include voltage and scale
   radio.stopListening();
   radio.setPayloadSize(sizeof(HBpayload));
-//  weight=scaleRead(); First number is before the decimal place, second is after. Second is 0-99.
-//  code to determine voltage
-//  voltage=blah  First number is before the decimal place, second is after. Second is 0-99.
-//  uint8_t HBpayload[7]={255,weight[0],weight[1],voltage[0],voltage[1],0,238];
+  float weight=scaleRead(); 
+//  First number is before the decimal place, second is after. Second is 0-99.
+  uint8_t weight1=uint8_t(weight);
+  uint8_t weight2=uint8_t(weight*100-weight1*100);
+  float voltage=(VPin)/4.8*13  
+  uint8_t volt1=uint8_t(voltage);
+  uint8_t volt2=uint8_t(voltage*100-volt1*100);
+  HBpayload[7]={255,weight1,weight2,volt1,volt2,0,238];
   int chkSUM=0;
   for(int i=0; i<sizeof(HBpayload); i++){
     if (i!=5){
@@ -311,10 +311,8 @@ void roboPulse(){
 void scaleRead(){
   if (scale.is_ready()) {
     long reading = scale.read();
-//    Serial.print("HX711 reading: ");
-//    Serial.println(reading);
-//    code to determine weight WIP
-//    return weight;
+    float weight=abs((float(reading)+333163)/232208*1.1);
+    return weight;
   } 
   else{
     Serial.println("HX711 not found.");
