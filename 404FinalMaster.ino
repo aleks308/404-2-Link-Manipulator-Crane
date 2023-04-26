@@ -58,6 +58,42 @@ unsigned long currMillis=0;
 unsigned long prevMillis=0;
 const unsigned long HBPeriod=500;
 
+
+void readEncoder(){
+  int b = digitalRead(ENCB);
+  if(b>0){
+    DCticks++;
+  }
+  else{
+    DCticks--;
+  }
+}
+
+void retractDC(){
+  while(DCticks>0){
+    setMotor(1,IN1,IN2);
+    //Serial.println(DCticks);
+  }
+  setMotor(0,IN1,IN2);
+}
+
+void distDC(uint16_t DCDist){
+  while(DCticks<int(DCDist)){
+    setMotor(-1,IN1,IN2);
+    //Serial.println(DCticks);
+  }
+  setMotor(0,IN1,IN2);
+}
+
+void distRetractDC(uint16_t DCDist){
+  while(abs(DCticks)<int(DCDist)){
+    setMotor(1,IN1,IN2);
+    //Serial.println(DCticks);
+  }
+  DCticks=0;
+  setMotor(0,IN1,IN2);
+}
+
 void parsePayload(){
   if (payload[0]==255 && payload[5]==238){
     switch (payload[1]){
@@ -78,17 +114,18 @@ void parsePayload(){
         yin=payload[3];
         motorGOTO();
         break;
-      case 12:
+      case 13:
         uint16_t distin=(payload[2])|(payload[3]<<8);
-        //Serial.print(distin);
+        Serial.print(distin);
+        distRetractDC(distin);
+        break;
+    }
+    switch(payload[1]){
+      case 12:
+        Serial.print("here12");
+        uint16_t distin=(payload[2])|(payload[3]<<8);
         Serial.print(distin);
         distDC(distin);
-        break;
-      case 13:
-        uint16_t distup=(payload[2])|(payload[3]<<8);
-        //Serial.print(distin);
-        Serial.print(distup);
-        distRetractDC(distup);
         break;
     }
   }
@@ -115,41 +152,42 @@ void motorHalf(){
   //4456 Ticks full extend
   xNema.set(CLOCKWISE, RPM, PULSE);
   yNema.set(CLOCKWISE, RPM, PULSE);
-  if (currX<2228){
-    for (size_t i = 0+currX; i < 2228; i++)
+  if (currX<=450){
+    for (size_t i = 0+currX; i < 450; i++)
     {
       xNema.run();
-    }
-  }
-  else{
-    for (size_t i = 0; i < 2228-currX; i++)
-    {
-      xNema.set(OTHERWISE, RPM, PULSE);
-      xNema.run();
-    }
-  }
-  if (currY<2228){
-    for (size_t i = 0+currY; i < 2228; i++)
-    {
       yNema.run();
     }
   }
   else{
-    for (size_t i = 0; i < 2228-currY; i++)
+    xNema.set(OTHERWISE, RPM, PULSE);
+    yNema.set(OTHERWISE, RPM, PULSE);
+    for (size_t i = 0; i < currX-450; i++)
     {
-      yNema.set(OTHERWISE, RPM, PULSE);
+      xNema.run();
       yNema.run();
     }
   }
-  currX=2228;
-  currY=2228;
-}
-
-void retractDC(){
-  while(DCticks>0){
-    setMotor(1,IN1,IN2);
+  if (currY<=625){
+    xNema.set(OTHERWISE, RPM, PULSE);
+    yNema.set(CLOCKWISE, RPM, PULSE);
+    for (size_t i = 0+currY; i < 625; i++)
+    {
+      xNema.run();
+      yNema.run();
+    }
   }
-  setMotor(0,IN1,IN2);
+  else{
+    xNema.set(CLOCKWISE, RPM, PULSE);
+    yNema.set(OTHERWISE, RPM, PULSE);
+    for (size_t i = 0; i < currY-625; i++)
+    {
+      xNema.run();
+      yNema.run();
+    }
+  }
+  currX=450;
+  currY=625;
 }
 
 void eStop(){
@@ -159,8 +197,8 @@ void eStop(){
 void motorGOTO(){ //Inputs Converted to Steps
   xNema.set(CLOCKWISE, RPM, PULSE);
   yNema.set(CLOCKWISE, RPM, PULSE);
-  int xp=map(xin,0,255,0,2550);
-  int yp=map(yin,0,255,0,2550);
+  int xp=map(xin,0,255,0,900);
+  int yp=map(yin,0,255,0,1250);
   if (currX<=xp){
     for (size_t i = 0+currX; i < xp; i++)
     {
@@ -214,20 +252,6 @@ void setMotor(int dir, int in1, int in2){
   }
 }
 
-void distDC(uint16_t DCDist){
-  while(DCticks<int(DCDist)){
-    setMotor(-1,IN1,IN2);
-  }
-  setMotor(0,IN1,IN2);
-}
-
-void distRetractDC(uint16_t DCDist){
-  while(DCticks>int(DCDist)){
-    setMotor(1,IN1,IN2);
-  }
-  setMotor(0,IN1,IN2);
-}
-
 float scaleRead(){
   if (scale.is_ready()) {
     long reading = scale.read();
@@ -271,16 +295,6 @@ void roboPulse(){
   radio.startListening();
 }
 
-void readEncoder(){
-  int b = digitalRead(ENCB);
-  if(b>0){
-    DCticks++;
-  }
-  else{
-    DCticks--;
-  }
-}
-
 void setup() {
   Serial.begin(115200);
 
@@ -312,6 +326,7 @@ void setup() {
 }
 
 void loop() {
+  //Serial.println(DCticks);
 //  currMillis=millis();
 //  if (currMillis-prevMillis >= HBPeriod){
 //    roboPulse();
