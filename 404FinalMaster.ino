@@ -56,7 +56,7 @@ int yin=0;
 //Pulse
 unsigned long currMillis=0;
 unsigned long prevMillis=0;
-const unsigned long HBPeriod=500;
+const unsigned long HBPeriod=3000;
 
 
 void readEncoder(){
@@ -191,7 +191,7 @@ void motorHalf(){
 }
 
 void eStop(){
-  digitalWrite(eStop_pin, HIGH);
+  digitalWrite(eStop_pin,HIGH);
 }
 
 void motorGOTO(){ //Inputs Converted to Steps
@@ -269,7 +269,7 @@ void roboPulse(){
 //  First number is before the decimal place, second is after. Second is 0-99.
   uint8_t weight1=uint8_t(weight);
   uint8_t weight2=uint8_t(weight*100-weight1*100);
-  float voltage=(map(analogRead(VPin),0,1023,3.3,5)/4.28)*13.2;
+  float voltage=(map(analogRead(VPin),0,1023,3.3,5)/4.16)*13.4;
   uint8_t volt1=uint8_t(voltage);
   uint8_t volt2=uint8_t(voltage*100-volt1*100);
   uint8_t HBpayload[7]={255,weight1,weight2,volt1,volt2,0,238};
@@ -323,6 +323,9 @@ void setup() {
 
   //Timer
   prevMillis=millis();
+
+  //EStop
+  digitalWrite(eStop_pin,LOW);
 }
 
 void loop() {
