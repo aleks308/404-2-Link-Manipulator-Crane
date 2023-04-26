@@ -57,69 +57,6 @@ int yin=0;
 unsigned long currMillis=0;
 unsigned long prevMillis=0;
 const unsigned long HBPeriod=500;
-uint8_t HBpayload[7]={255,12,6,1,23,238,238};
-
-void setup() {
-  Serial.begin(115200);
-
-  //RF 
-  if (!radio.begin()) {
-    Serial.println(F("radio hardware is not responding!!"));
-    while (1) {}  // hold in infinite loop
-  }
-  radio.setPALevel(RF24_PA_LOW);
-  radio.setPayloadSize(sizeof(payload));
-  radio.openWritingPipe(address[radioNumber]);
-  radio.openReadingPipe(1, address[!radioNumber]);  
-  radio.startListening();
-
-  //HX711
-  scale.begin(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
-
-  //NEMA
-  xNema.init();
-  yNema.init();
-  attachInterrupt(digitalPinToInterrupt(xStop),setx0,RISING);
-  attachInterrupt(digitalPinToInterrupt(yStop),sety0,RISING);
-
-  //DC 
-  pinMode(ENCA,INPUT);
-  pinMode(ENCB,INPUT);
-  attachInterrupt(digitalPinToInterrupt(ENCA),readEncoder,RISING);
-
-  //Timer
-  prevMillis=millis();
-}
-
-void loop() {
-  currMillis=millis();
-  if (currMillis-prevMillis >= HBPeriod){
-    roboPulse();
-    prevMillis=currMillis;
-  }
-  uint8_t pipe;
-  if (radio.available(&pipe))
-  {
-     uint8_t bytes = radio.getPayloadSize();
-     radio.read(&payload, bytes);
-     for(int i=0; i<sizeof(payload); i++){
-       Serial.println(payload[i]);
-     }
-     int chkSUM=0;
-     for(int i=0; i<sizeof(payload); i++){
-       if (i!=4){
-        chkSUM=chkSUM+int(payload[i]);
-       }
-     }
-     chkSUM=chkSUM % 256;
-     if(payload[4]==chkSUM){
-       parsePayload();
-     }
-     else{
-      Serial.print("Bad checksum");
-     }
-  }
-}
 
 void parsePayload(){
   if (payload[0]==255 && payload[5]==238){
@@ -147,11 +84,11 @@ void parsePayload(){
         Serial.print(distin);
         distDC(distin);
         break;
-      case 13
-        uint16_t distin=(payload[2])|(payload[3]<<8);
+      case 13:
+        uint16_t distup=(payload[2])|(payload[3]<<8);
         //Serial.print(distin);
-        Serial.print(distin);
-        distRetractDC(distin);
+        Serial.print(distup);
+        distRetractDC(distup);
         break;
     }
   }
@@ -262,6 +199,21 @@ void motorGOTO(){ //Inputs Converted to Steps
   currY=yp;
 }
 
+void setMotor(int dir, int in1, int in2){
+  if(dir==1){
+    digitalWrite(in1,HIGH);
+    digitalWrite(in2,LOW);
+  }
+  else if(dir==-1){
+    digitalWrite(in1,LOW);
+    digitalWrite(in2,HIGH);
+  }
+  else{
+    digitalWrite(in1,LOW);
+    digitalWrite(in2,LOW);
+  }
+}
+
 void distDC(uint16_t DCDist){
   while(DCticks<int(DCDist)){
     setMotor(-1,IN1,IN2);
@@ -276,18 +228,29 @@ void distRetractDC(uint16_t DCDist){
   setMotor(0,IN1,IN2);
 }
 
+float scaleRead(){
+  if (scale.is_ready()) {
+    long reading = scale.read();
+    float weight=abs((float(reading)+333163)/232208*1.1);
+    return weight;
+  } 
+  else{
+    Serial.println("HX711 not found.");
+  }
+}
+
 void roboPulse(){
 //include voltage and scale
-  radio.stopListening();
-  radio.setPayloadSize(sizeof(HBpayload));
   float weight=scaleRead(); 
 //  First number is before the decimal place, second is after. Second is 0-99.
   uint8_t weight1=uint8_t(weight);
   uint8_t weight2=uint8_t(weight*100-weight1*100);
-  float voltage=(VPin)/4.8*13  
+  float voltage=(map(analogRead(VPin),0,1023,3.3,5)/4.28)*13.2;
   uint8_t volt1=uint8_t(voltage);
   uint8_t volt2=uint8_t(voltage*100-volt1*100);
-  HBpayload[7]={255,weight1,weight2,volt1,volt2,0,238];
+  uint8_t HBpayload[7]={255,weight1,weight2,volt1,volt2,0,238};
+  radio.stopListening();
+  radio.setPayloadSize(sizeof(HBpayload));
   int chkSUM=0;
   for(int i=0; i<sizeof(HBpayload); i++){
     if (i!=5){
@@ -308,17 +271,6 @@ void roboPulse(){
   radio.startListening();
 }
 
-void scaleRead(){
-  if (scale.is_ready()) {
-    long reading = scale.read();
-    float weight=abs((float(reading)+333163)/232208*1.1);
-    return weight;
-  } 
-  else{
-    Serial.println("HX711 not found.");
-  }
-}
-
 void readEncoder(){
   int b = digitalRead(ENCB);
   if(b>0){
@@ -329,27 +281,62 @@ void readEncoder(){
   }
 }
 
-void setMotor(int dir, int in1, int in2){
-  if(dir==1){
-    digitalWrite(in1,HIGH);
-    digitalWrite(in2,LOW);
+void setup() {
+  Serial.begin(115200);
+
+  //RF 
+  if (!radio.begin()) {
+    Serial.println(F("radio hardware is not responding!!"));
+    while (1) {}  // hold in infinite loop
   }
-  else if(dir==-1){
-    digitalWrite(in1,LOW);
-    digitalWrite(in2,HIGH);
-  }
-  else{
-    digitalWrite(in1,LOW);
-    digitalWrite(in2,LOW);
-  }
+  radio.setPALevel(RF24_PA_LOW);
+  radio.setPayloadSize(sizeof(payload));
+  radio.openWritingPipe(address[radioNumber]);
+  radio.openReadingPipe(1, address[!radioNumber]);  
+  radio.startListening();
+
+  //HX711
+  scale.begin(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
+
+  //NEMA
+  xNema.init();
+  yNema.init();
+
+  //DC 
+  pinMode(ENCA,INPUT);
+  pinMode(ENCB,INPUT);
+  attachInterrupt(digitalPinToInterrupt(ENCA),readEncoder,RISING);
+
+  //Timer
+  prevMillis=millis();
 }
 
-void setx0(){
-  currX=0;
-  Serial.print("x");
-}
-
-void sety0(){
-  currY=0;
-  Serial.print("y");
+void loop() {
+//  currMillis=millis();
+//  if (currMillis-prevMillis >= HBPeriod){
+//    roboPulse();
+//    prevMillis=currMillis;
+//  }
+  uint8_t pipe;
+  if (radio.available(&pipe))
+  {
+     uint8_t bytes = radio.getPayloadSize();
+     radio.read(&payload, bytes);
+     for(int i=0; i<sizeof(payload); i++){
+       Serial.println(payload[i]);
+     }
+     int chkSUM=0;
+     for(int i=0; i<sizeof(payload); i++){
+       if (i!=4){
+        chkSUM=chkSUM+int(payload[i]);
+       }
+     }
+     chkSUM=chkSUM % 256;
+     if(payload[4]==chkSUM){
+       parsePayload();
+     }
+     else{
+      Serial.print("Bad checksum");
+     }
+  }
 }
