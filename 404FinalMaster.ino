@@ -56,7 +56,7 @@ int yin=0;
 //Pulse
 unsigned long currMillis=0;
 unsigned long prevMillis=0;
-const unsigned long HBPeriod=3000;
+const unsigned long HBPeriod=5000;
 
 
 void readEncoder(){
@@ -72,7 +72,7 @@ void readEncoder(){
 void retractDC(){
   while(DCticks>0){
     setMotor(1,IN1,IN2);
-    //Serial.println(DCticks);
+    Serial.println(DCticks);
   }
   setMotor(0,IN1,IN2);
 }
@@ -80,18 +80,20 @@ void retractDC(){
 void distDC(uint16_t DCDist){
   while(DCticks<int(DCDist)){
     setMotor(-1,IN1,IN2);
-    //Serial.println(DCticks);
+    Serial.println(DCticks);
   }
   setMotor(0,IN1,IN2);
 }
 
 void distRetractDC(uint16_t DCDist){
+  DCticks=0;
   while(abs(DCticks)<int(DCDist)){
     setMotor(1,IN1,IN2);
-    //Serial.println(DCticks);
+    Serial.println(DCticks);
   }
   DCticks=0;
   setMotor(0,IN1,IN2);
+  Serial.println(DCticks);
 }
 
 void parsePayload(){
@@ -122,7 +124,6 @@ void parsePayload(){
     }
     switch(payload[1]){
       case 12:
-        Serial.print("here12");
         uint16_t distin=(payload[2])|(payload[3]<<8);
         Serial.print(distin);
         distDC(distin);
@@ -247,8 +248,8 @@ void setMotor(int dir, int in1, int in2){
     digitalWrite(in2,HIGH);
   }
   else{
-    digitalWrite(in1,LOW);
-    digitalWrite(in2,LOW);
+    digitalWrite(in1,HIGH);
+    digitalWrite(in2,HIGH);
   }
 }
 
@@ -269,7 +270,7 @@ void roboPulse(){
 //  First number is before the decimal place, second is after. Second is 0-99.
   uint8_t weight1=uint8_t(weight);
   uint8_t weight2=uint8_t(weight*100-weight1*100);
-  float voltage=(map(analogRead(VPin),0,1023,3.3,5)/4.16)*13.4;
+  float voltage=(map(analogRead(VPin),0,1023,3.3,5)/4.2)*13.3;
   uint8_t volt1=uint8_t(voltage);
   uint8_t volt2=uint8_t(voltage*100-volt1*100);
   uint8_t HBpayload[7]={255,weight1,weight2,volt1,volt2,0,238};
@@ -325,16 +326,16 @@ void setup() {
   prevMillis=millis();
 
   //EStop
+  pinMode(eStop_pin,OUTPUT);
   digitalWrite(eStop_pin,LOW);
 }
 
 void loop() {
-  //Serial.println(DCticks);
-//  currMillis=millis();
-//  if (currMillis-prevMillis >= HBPeriod){
-//    roboPulse();
-//    prevMillis=currMillis;
-//  }
+  currMillis=millis();
+  if (currMillis-prevMillis >= HBPeriod){
+    roboPulse();
+    prevMillis=currMillis;
+  }
   uint8_t pipe;
   if (radio.available(&pipe))
   {
