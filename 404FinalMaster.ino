@@ -31,10 +31,6 @@ const int LOADCELL_DOUT_PIN = 11;
 const int LOADCELL_SCK_PIN = 12;
 HX711 scale;
 
-//end stop pins
-#define xStop 20
-#define yStop 21
-
 //Stepp pins
 #define EN_PIN1 29
 #define DIR_PIN1 31
